@@ -50,6 +50,14 @@ class BeaconBlockHeader():
     body_root: Root
 
 
+class SignedBeaconBlock():
+    '''
+    Used for slashing
+    '''
+    message: BeaconBlock
+    signature: BLSSignature
+
+
 class SignedBeaconBlockHeader():
     '''
     Used for slashing
