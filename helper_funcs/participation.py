@@ -1,6 +1,4 @@
-from ..config.custom_constants import *
-from ..config.custom_presets import *
-from ..config.custom_types import *
+from config import *
 
 
 def add_flag(flags: ParticipationFlags, flag_index: int) -> ParticipationFlags:

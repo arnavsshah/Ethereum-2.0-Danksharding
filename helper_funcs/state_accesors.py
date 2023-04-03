@@ -1,8 +1,6 @@
-from ..config.custom_constants import *
-from ..config.custom_presets import *
-from ..config.custom_types import *
+from config import *
 
-from ..beacon_state import BeaconState
+from containers.beacon_state import BeaconState
 
 def get_current_epoch(state: BeaconState) -> Epoch:
     """

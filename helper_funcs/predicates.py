@@ -1,12 +1,10 @@
-from ..config.custom_constants import *
-from ..config.custom_presets import *
-from ..config.custom_types import *
+from config import *
 
-from ..helper_funcs.math import *
+from helper_funcs.math import *
 
-from ..validator import Validator
-from ..attestation import AttestationData, IndexedAttestation
-from ..beacon_state import BeaconState
+from containers.validator import Validator
+from containers.attestation import AttestationData, IndexedAttestation
+from containers.beacon_state import BeaconState
 
 def is_slashable_validator(validator: Validator, epoch: Epoch) -> bool:
     """

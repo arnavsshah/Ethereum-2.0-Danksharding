@@ -1,4 +1,4 @@
-from custom_types import *
+from .custom_types import *
 
 # Misc
 MAX_COMMITTEES_PER_SLOT = 64
@@ -18,8 +18,8 @@ EFFECTIVE_BALANCE_INCREMENT = Gwei(2**0 * 10**9)  # (= 1,000,000,000)
 
 
 # Time parameters
-MIN_ATTESTATION_INCLUSION_DELAY = Slot(1)
-SLOTS_PER_EPOCH = Slot(32)
+MIN_ATTESTATION_INCLUSION_DELAY = 1
+SLOTS_PER_EPOCH = 32
 MIN_SEED_LOOKAHEAD = 1
 
 

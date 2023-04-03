@@ -1,12 +1,18 @@
-from ..config.custom_constants import *
-from ..config.custom_presets import *
-from ..config.custom_types import *
+from hashlib import sha256
+from rlp import Serializable, encode
 
-from ..helper_funcs.math import *
+from config import *
+from helper_funcs.math import *
+from containers.beacon_state import BeaconState
 
-from ..validator import Validator
-from ..attestation import AttestationData, IndexedAttestation
-from ..beacon_state import BeaconState
+
+def hash(data: bytes) -> Bytes32:
+    return sha256(data).digest()
+
+
+def hash_tree_root(object: Serializable) -> Bytes32:
+    data = encode(object)
+    return sha256(data).digest()
 
 
 def compute_shuffled_index(index: int, index_count: int, seed: Bytes32) -> int:
