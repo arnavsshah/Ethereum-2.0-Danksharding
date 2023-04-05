@@ -12,9 +12,9 @@ SHUFFLE_ROUND_COUNT = 90
 
 # Gwei values
 # don't know if it will be used for this project (too complex)
-MIN_DEPOSIT_AMOUNT = Gwei(2**0 * 10**9)  # (= 1,000,000,000) - used in deposit contract
-MAX_EFFECTIVE_BALANCE = Gwei(2**5 * 10**9)  # (= 32,000,000,000) - 
-EFFECTIVE_BALANCE_INCREMENT = Gwei(2**0 * 10**9)  # (= 1,000,000,000)
+MIN_DEPOSIT_AMOUNT = 2**0 * 10**9  # (= 1,000,000,000) - used in deposit contract
+MAX_EFFECTIVE_BALANCE = 2**5 * 10**9  # (= 32,000,000,000) - 
+EFFECTIVE_BALANCE_INCREMENT = 2**0 * 10**9  # (= 1,000,000,000)
 
 
 # Time parameters
@@ -42,4 +42,3 @@ MAX_ATTESTATIONS = 128
 
 # Execution
 MAX_TRANSACTIONS_PER_PAYLOAD = 2**20  # (= 1,048,576) transactions per execution paylod
-

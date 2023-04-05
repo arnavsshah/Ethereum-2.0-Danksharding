@@ -4,13 +4,16 @@ from rlp import Serializable, encode
 from config import *
 from helper_funcs.math import *
 from containers.beacon_state import BeaconState
+from containers.signing_data import SigningData
+
+from typing import List
 
 
 def hash(data: bytes) -> Bytes32:
     return sha256(data).digest()
 
 
-def hash_tree_root(object: Serializable) -> Bytes32:
+def hash_tree_root(object: Serializable) -> Root:
     data = encode(object)
     return sha256(data).digest()
 
@@ -24,7 +27,8 @@ def compute_shuffled_index(index: int, index_count: int, seed: Bytes32) -> int:
     # Swap or not (https://link.springer.com/content/pdf/10.1007%2F978-3-642-32009-5_1.pdf)
     # See the 'generalized domain' algorithm on page 3
     for current_round in range(SHUFFLE_ROUND_COUNT):
-        pivot = bytes_to_int(hash(seed + int_to_bytes(int(current_round)))[0:8]) % index_count
+        pivot = bytes_to_int(
+            hash(seed + int_to_bytes(int(current_round)))[0:8]) % index_count
         flip = (pivot + index_count - index) % index_count
         position = max(index, flip)
         source = hash(
@@ -39,7 +43,6 @@ def compute_shuffled_index(index: int, index_count: int, seed: Bytes32) -> int:
     return index
 
 
-
 def compute_proposer_index(state: BeaconState, indices: List[ValidatorIndex], seed: Bytes32) -> ValidatorIndex:
     """
     Return from ``indices`` a random index sampled by effective balance.
@@ -49,13 +52,13 @@ def compute_proposer_index(state: BeaconState, indices: List[ValidatorIndex], se
     i = int(0)
     total = int(len(indices))
     while True:
-        candidate_index = indices[compute_shuffled_index(i % total, total, seed)]
+        candidate_index = indices[compute_shuffled_index(
+            i % total, total, seed)]
         random_byte = hash(seed + int_to_bytes(int(i // 32)))[i % 32]
         effective_balance = state.validators[candidate_index].effective_balance
         if effective_balance * MAX_RANDOM_BYTE >= MAX_EFFECTIVE_BALANCE * random_byte:
             return candidate_index
         i += 1
-
 
 
 def compute_committee(indices: List[ValidatorIndex],
@@ -70,36 +73,29 @@ def compute_committee(indices: List[ValidatorIndex],
     return [indices[compute_shuffled_index(int(i), int(len(indices)), seed)] for i in range(start, end)]
 
 
-
 def compute_epoch_at_slot(slot: Slot) -> Epoch:
     """
     Return the epoch number at ``slot``.
     """
-    return Epoch(slot // SLOTS_PER_EPOCH)
+    return slot // SLOTS_PER_EPOCH
 
 
 def compute_start_slot_at_epoch(epoch: Epoch) -> Slot:
     """
     Return the start slot of ``epoch``.
     """
-    return Slot(epoch * SLOTS_PER_EPOCH)
+    return epoch * SLOTS_PER_EPOCH
 
 
-
-def compute_domain(domain_type: DomainType, fork_version: Version=None, genesis_validators_root: Root=None) -> Domain:
+def compute_domain(domain_type: DomainType) -> Domain:
     """
-    Return the domain for the ``domain_type`` and ``fork_version``.
+    Return the domain for the ``domain_type``. Fork version and genesis validators root removed
     """
-    if fork_version is None:
-        fork_version = GENESIS_FORK_VERSION
-    if genesis_validators_root is None:
-        genesis_validators_root = Root()  # all bytes zero by default
-    fork_data_root = compute_fork_data_root(fork_version, genesis_validators_root)
-    return Domain(domain_type + fork_data_root[:28])
+
+    return bytes(domain_type + b'\x00' * 28)  # Bytes32
 
 
-
-def compute_signing_root(ssz_object: SSZObject, domain: Domain) -> Root:
+def compute_signing_root(ssz_object: Serializable, domain: Domain) -> Root:
     """
     Return the signing root for the corresponding signing data.
     """
@@ -109,6 +105,6 @@ def compute_signing_root(ssz_object: SSZObject, domain: Domain) -> Root:
     ))
 
 
-def compute_timestamp_at_slot(state: BeaconState, slot: Slot) -> uint64:
+def compute_timestamp_at_slot(state: BeaconState, slot: Slot) -> int:
     slots_since_genesis = slot - GENESIS_SLOT
-    return uint64(state.genesis_time + slots_since_genesis * SECONDS_PER_SLOT)
+    return int(state.genesis_time + slots_since_genesis * SECONDS_PER_SLOT)

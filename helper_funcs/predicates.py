@@ -1,10 +1,15 @@
 from config import *
 
 from helper_funcs.math import *
+import helper_funcs.bls_utils as bls
+from helper_funcs.misc import compute_signing_root
+from helper_funcs.beacon_state_accesors import get_domain
 
 from containers.validator import Validator
 from containers.attestation import AttestationData, IndexedAttestation
 from containers.beacon_state import BeaconState
+
+
 
 def is_slashable_validator(validator: Validator, epoch: Epoch) -> bool:
     """

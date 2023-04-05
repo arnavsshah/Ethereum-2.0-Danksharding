@@ -1,15 +1,18 @@
 from rlp import Serializable, encode, decode
 from rlp.sedes import big_endian_int, binary, List, boolean, CountableList
-
-Slot = big_endian_int
-
+from config import *
 
 class A(Serializable):
     fields = (
-        ('sender', CountableList(big_endian_int, max_length=3)),
+        ('sender', big_endian_int),
     )
 
-a = A([1,2,3,4])
-e = encode(a)
-d = decode(e, A)
-print(e, list(a.sender))
+
+a = A(2)
+b = A(2)
+
+e1 = encode(a)
+e2 = encode(b)
+
+d1 = decode(e1, A)
+d2 = decode(e2, A)
