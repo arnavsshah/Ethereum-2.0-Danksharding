@@ -1,10 +1,10 @@
 from bls.scheme import setup, sign, verify, aggregate_vk, aggregate_sigma
 from bplib.bp import BpGroup, G1Elem, G2Elem
 from petlib.bn import Bn
-from typing import List
 
 from config import *
 
+from typing import List
 
 def Sign(privkey: int, message: bytes) -> BLSSignature:
     params = setup() # generate the public parameters

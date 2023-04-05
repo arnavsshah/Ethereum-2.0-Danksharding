@@ -1,7 +1,4 @@
-from typing import List
-
 from config import *
-
 
 def add_flag(flags: ParticipationFlags, flag_index: int) -> ParticipationFlags:
     """

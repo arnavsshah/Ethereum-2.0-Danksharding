@@ -10,7 +10,6 @@ from containers.attestation import AttestationData, IndexedAttestation
 from containers.beacon_state import BeaconState
 
 
-
 def is_slashable_validator(validator: Validator, epoch: Epoch) -> bool:
     """
     Check if ``validator`` is slashable.
