@@ -1,11 +1,13 @@
 from config import *
 
+from helper_funcs.math import xor
 from helper_funcs.misc import hash_tree_root, compute_signing_root, compute_timestamp_at_slot
 from helper_funcs.beacon_state_accesors import get_attestation_participation_flag_indices, get_attesting_indices, get_indexed_attestation, get_beacon_proposer_index, get_current_epoch, get_randao_mix, get_domain, compute_epoch_at_slot, get_beacon_committee, get_committee_count_per_slot, get_previous_epoch
 from helper_funcs.beacon_state_mutators import slash_validator, increase_balance
 from helper_funcs.predicates import is_slashable_validator, is_slashable_attestation_data, is_valid_indexed_attestation
 import helper_funcs.bls_utils as bls
 from helper_funcs.participation_flags import has_flag, add_flag
+from state_transition_funcs.epoch_processing import get_base_reward
 
 from containers.beacon_state import BeaconState
 from containers.beacon_block import BeaconBlock, BeaconBlockHeader, BeaconBlockBody
@@ -13,7 +15,7 @@ from containers.execution_payload import ExecutionPayload, ExecutionPayloadHeade
 from containers.attestation import Attestation
 from containers.beacon_ops import ProposerSlashing, AttesterSlashing
 
-from typing import List, Any
+from typing import List, Any, Callable
 
 
 
@@ -22,7 +24,6 @@ def process_block(state: BeaconState, block: BeaconBlock) -> None:
     if is_execution_enabled(state, block.body):
         process_execution_payload(state, block.body.execution_payload, EXECUTION_ENGINE)  # [New in Bellatrix]
     process_randao(state, block.body)
-    process_eth1_data(state, block.body)
     process_operations(state, block.body)  # [Modified in Altair]
 
 
@@ -40,7 +41,7 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
         slot=block.slot,
         proposer_index=block.proposer_index,
         parent_root=block.parent_root,
-        state_root=Bytes32(),  # Overwritten in the next process_slot call
+        state_root=bytes('', 'utf-8'),  # Overwritten in the next process_slot call
         body_root=hash_tree_root(block.body),
     )
 
@@ -52,8 +53,7 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
 
 def process_execution_payload(state: BeaconState, payload: ExecutionPayload, execution_engine: ExecutionEngine) -> None:
     # Verify consistency of the parent hash with respect to the previous execution payload header
-    if is_merge_transition_complete(state):
-        assert payload.parent_hash == state.latest_execution_payload_header.block_hash
+    assert payload.parent_hash == state.latest_execution_payload_header.block_hash
     # Verify prev_randao
     assert payload.prev_randao == get_randao_mix(state, get_current_epoch(state))
     # Verify timestamp
@@ -91,15 +91,7 @@ def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
     state.randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR] = mix
 
 
-def process_eth1_data(state: BeaconState, body: BeaconBlockBody) -> None:
-    state.eth1_data_votes.append(body.eth1_data)
-    if state.eth1_data_votes.count(body.eth1_data) * 2 > EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH:
-        state.eth1_data = body.eth1_data
-
-
 def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
-    # Verify that outstanding deposits are processed up to the maximum number of deposits
-    assert len(body.deposits) == min(MAX_DEPOSITS, state.eth1_data.deposit_count - state.eth1_deposit_index)
 
     def for_ops(operations: List[Any], fn: Callable[[BeaconState, Any], None]) -> None:
         for operation in operations:
@@ -108,8 +100,6 @@ def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
     for_ops(body.proposer_slashings, process_proposer_slashing)
     for_ops(body.attester_slashings, process_attester_slashing)
     for_ops(body.attestations, process_attestation)
-    for_ops(body.deposits, process_deposit)
-    for_ops(body.voluntary_exits, process_voluntary_exit)
 
 
 def process_proposer_slashing(state: BeaconState, proposer_slashing: ProposerSlashing) -> None:
@@ -182,7 +172,7 @@ def process_attestation(state: BeaconState, attestation: Attestation) -> None:
 
     # Reward proposer
     proposer_reward_denominator = (WEIGHT_DENOMINATOR - PROPOSER_WEIGHT) * WEIGHT_DENOMINATOR // PROPOSER_WEIGHT
-    proposer_reward = Gwei(proposer_reward_numerator // proposer_reward_denominator)
+    proposer_reward = proposer_reward_numerator // proposer_reward_denominator
     increase_balance(state, get_beacon_proposer_index(state), proposer_reward)
 
 

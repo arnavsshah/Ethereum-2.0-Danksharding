@@ -48,7 +48,8 @@ def process_slot(state: BeaconState) -> None:
     state.state_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_state_root
     
     # Cache latest block header state root
-    state.latest_block_header.state_root = previous_state_root
+    if state.latest_block_header.state_root == bytes('', 'utf-8'):  # set in process_block_header()
+        state.latest_block_header.state_root = previous_state_root
 
     # Cache block root
     previous_block_root = hash_tree_root(state.latest_block_header)

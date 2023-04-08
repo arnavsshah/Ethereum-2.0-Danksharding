@@ -4,6 +4,7 @@ from helper_funcs.math import integer_squareroot
 from helper_funcs.misc import hash_tree_root
 from helper_funcs.beacon_state_accesors import get_randao_mix, get_current_epoch, get_unslashed_participating_indices, get_total_active_balance, get_total_balance, get_previous_epoch, get_block_root, get_flag_index_deltas
 from helper_funcs.beacon_state_mutators import increase_balance, decrease_balance
+from helper_funcs.predicates import is_active_validator
 
 from containers.beacon_state import BeaconState
 from containers.checkpoint import Checkpoint
@@ -14,12 +15,10 @@ from typing import List
 def process_epoch(state: BeaconState) -> None:
     process_justification_and_finalization(state)  # [Modified in Altair]
     process_rewards_and_penalties(state)  # [Modified in Altair]
-    process_registry_updates(state)
     process_slashings(state)  # [Modified in Altair]
     process_effective_balance_updates(state)
     process_slashings_reset(state)
     process_randao_mixes_reset(state)
-    process_historical_roots_update(state)
     process_participation_flag_updates(state)  # [New in Altair]
 
 
@@ -51,15 +50,15 @@ def weigh_justification_and_finalization(state: BeaconState,
     # Process justifications
     state.previous_justified_checkpoint = state.current_justified_checkpoint
     state.justification_bits[1:] = state.justification_bits[:JUSTIFICATION_BITS_LENGTH - 1]
-    state.justification_bits[0] = 0b0
+    state.justification_bits[0] = 0  # 0b0 -> 0
     if previous_epoch_target_balance * 3 >= total_active_balance * 2:
         state.current_justified_checkpoint = Checkpoint(epoch=previous_epoch,
                                                         root=get_block_root(state, previous_epoch))
-        state.justification_bits[1] = 0b1
+        state.justification_bits[1] = 1  # 0b1 -> 1
     if current_epoch_target_balance * 3 >= total_active_balance * 2:
         state.current_justified_checkpoint = Checkpoint(epoch=current_epoch,
                                                         root=get_block_root(state, current_epoch))
-        state.justification_bits[0] = 0b1
+        state.justification_bits[0] = 1  # 0b1 -> 1
 
     # Process finalizations
     bits = state.justification_bits
@@ -79,7 +78,7 @@ def weigh_justification_and_finalization(state: BeaconState,
 
     
 def get_base_reward_per_increment(state: BeaconState) -> Gwei:
-    return Gwei(EFFECTIVE_BALANCE_INCREMENT * BASE_REWARD_FACTOR // integer_squareroot(get_total_active_balance(state)))
+    return EFFECTIVE_BALANCE_INCREMENT * BASE_REWARD_FACTOR // integer_squareroot(get_total_active_balance(state))
 
 
 def get_base_reward(state: BeaconState, index: ValidatorIndex) -> Gwei:
@@ -87,8 +86,7 @@ def get_base_reward(state: BeaconState, index: ValidatorIndex) -> Gwei:
     Return the base reward for the validator defined by ``index`` with respect to the current ``state``.
     """
     increments = state.validators[index].effective_balance // EFFECTIVE_BALANCE_INCREMENT
-    return Gwei(increments * get_base_reward_per_increment(state))
-
+    return increments * get_base_reward_per_increment(state)
 
 
 def get_finality_delay(state: BeaconState) -> int:
@@ -98,8 +96,8 @@ def get_finality_delay(state: BeaconState) -> int:
 def get_eligible_validator_indices(state: BeaconState) -> List[ValidatorIndex]:
     previous_epoch = get_previous_epoch(state)
     return [
-        ValidatorIndex(index) for index, v in enumerate(state.validators)
-        if is_active_validator(v, previous_epoch) or (v.slashed and previous_epoch + 1 < v.withdrawable_epoch)
+        index for index, v in enumerate(state.validators)
+        if is_active_validator(v, previous_epoch) or v.slashed
     ]
 
 def process_rewards_and_penalties(state: BeaconState) -> None:
@@ -108,35 +106,11 @@ def process_rewards_and_penalties(state: BeaconState) -> None:
         return
 
     flag_deltas = [get_flag_index_deltas(state, flag_index) for flag_index in range(len(PARTICIPATION_FLAG_WEIGHTS))]
-    deltas = flag_deltas + [get_inactivity_penalty_deltas(state)]
+    deltas = flag_deltas
     for (rewards, penalties) in deltas:
         for index in range(len(state.validators)):
-            increase_balance(state, ValidatorIndex(index), rewards[index])
-            decrease_balance(state, ValidatorIndex(index), penalties[index])
-
-
-def process_registry_updates(state: BeaconState) -> None:
-    # Process activation eligibility and ejections
-    for index, validator in enumerate(state.validators):
-        if is_eligible_for_activation_queue(validator):
-            validator.activation_eligibility_epoch = get_current_epoch(state) + 1
-
-        if (
-            is_active_validator(validator, get_current_epoch(state))
-            and validator.effective_balance <= EJECTION_BALANCE
-        ):
-            initiate_validator_exit(state, ValidatorIndex(index))
-
-    # Queue validators eligible for activation and not yet dequeued for activation
-    activation_queue = sorted([
-        index for index, validator in enumerate(state.validators)
-        if is_eligible_for_activation(state, validator)
-        # Order by the sequence of activation_eligibility_epoch setting and then index
-    ], key=lambda index: (state.validators[index].activation_eligibility_epoch, index))
-    # Dequeued validators for activation up to churn limit
-    for index in activation_queue[:get_validator_churn_limit(state)]:
-        validator = state.validators[index]
-        validator.activation_epoch = compute_activation_exit_epoch(get_current_epoch(state))
+            increase_balance(state, index, rewards[index])
+            decrease_balance(state, index, penalties[index])
 
 
 def process_slashings(state: BeaconState) -> None:
@@ -170,29 +144,21 @@ def process_effective_balance_updates(state: BeaconState) -> None:
 
 
 def process_slashings_reset(state: BeaconState) -> None:
-    next_epoch = Epoch(get_current_epoch(state) + 1)
+    next_epoch = get_current_epoch(state) + 1
     # Reset slashings
-    state.slashings[next_epoch % EPOCHS_PER_SLASHINGS_VECTOR] = Gwei(0)
+    state.slashings[next_epoch % EPOCHS_PER_SLASHINGS_VECTOR] = 0
 
 
 def process_randao_mixes_reset(state: BeaconState) -> None:
     current_epoch = get_current_epoch(state)
-    next_epoch = Epoch(current_epoch + 1)
+    next_epoch = current_epoch + 1
     # Set randao mix
     state.randao_mixes[next_epoch % EPOCHS_PER_HISTORICAL_VECTOR] = get_randao_mix(state, current_epoch)
 
 
-def process_historical_roots_update(state: BeaconState) -> None:
-    # Set historical root accumulator
-    next_epoch = Epoch(get_current_epoch(state) + 1)
-    if next_epoch % (SLOTS_PER_HISTORICAL_ROOT // SLOTS_PER_EPOCH) == 0:
-        historical_batch = HistoricalBatch(block_roots=state.block_roots, state_roots=state.state_roots)
-        state.historical_roots.append(hash_tree_root(historical_batch))
-
-
 def process_participation_flag_updates(state: BeaconState) -> None:
     state.previous_epoch_participation = state.current_epoch_participation
-    state.current_epoch_participation = [ParticipationFlags(0b0000_0000) for _ in range(len(state.validators))]
+    state.current_epoch_participation = [0 for _ in range(len(state.validators))]
 
 
 

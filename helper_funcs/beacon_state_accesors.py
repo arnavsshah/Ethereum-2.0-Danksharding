@@ -4,6 +4,8 @@ from helper_funcs.math import int_to_bytes, integer_squareroot
 from helper_funcs.misc import compute_epoch_at_slot, compute_start_slot_at_epoch, compute_committee, compute_proposer_index, compute_domain
 from helper_funcs.participation_flags import has_flag
 
+from state_transition_funcs.epoch_processing import get_base_reward, get_eligible_validator_indices
+
 from containers.beacon_state import BeaconState
 from containers.attestation import Attestation, IndexedAttestation, AttestationData
 
@@ -59,8 +61,7 @@ def get_seed(state: BeaconState, epoch: Epoch, domain_type: DomainType) -> Bytes
     """
     Return the seed at ``epoch``.
     """
-    mix = get_randao_mix(state, Epoch(
-        epoch + EPOCHS_PER_HISTORICAL_VECTOR - MIN_SEED_LOOKAHEAD - 1))  # Avoid underflow
+    mix = get_randao_mix(state, epoch + EPOCHS_PER_HISTORICAL_VECTOR - MIN_SEED_LOOKAHEAD - 1)  # Avoid underflow
     return hash(domain_type + int_to_bytes(epoch) + mix)
 
 
@@ -121,9 +122,7 @@ def get_domain(state: BeaconState, domain_type: DomainType, epoch: Epoch = None)
     """
     Return the signature domain (domain type - 32 bytes) of a message.
     """
-    epoch = get_current_epoch(state) if epoch is None else epoch
-    fork_version = state.fork.previous_version if epoch < state.fork.epoch else state.fork.current_version
-    return compute_domain(domain_type, fork_version, state.genesis_validators_root)
+    return compute_domain(domain_type)
 
 
 def get_indexed_attestation(state: BeaconState, attestation: Attestation) -> IndexedAttestation:
@@ -199,8 +198,8 @@ def get_flag_index_deltas(state: BeaconState, flag_index: int) -> Tuple[List[Gwe
     """
     Return the deltas for a given ``flag_index`` by scanning through the participation flags.
     """
-    rewards = [Gwei(0)] * len(state.validators)
-    penalties = [Gwei(0)] * len(state.validators)
+    rewards = [0] * len(state.validators)
+    penalties = [0] * len(state.validators)
     previous_epoch = get_previous_epoch(state)
     unslashed_participating_indices = get_unslashed_participating_indices(
         state, flag_index, previous_epoch)
@@ -210,14 +209,13 @@ def get_flag_index_deltas(state: BeaconState, flag_index: int) -> Tuple[List[Gwe
     unslashed_participating_increments = unslashed_participating_balance // EFFECTIVE_BALANCE_INCREMENT
     active_increments = get_total_active_balance(
         state) // EFFECTIVE_BALANCE_INCREMENT
+
     for index in get_eligible_validator_indices(state):
         base_reward = get_base_reward(state, index)
         if index in unslashed_participating_indices:
-            if not is_in_inactivity_leak(state):
-                reward_numerator = base_reward * weight * unslashed_participating_increments
-                rewards[index] += Gwei(reward_numerator //
-                                       (active_increments * WEIGHT_DENOMINATOR))
+            reward_numerator = base_reward * weight * unslashed_participating_increments
+            rewards[index] += reward_numerator // (
+                active_increments * WEIGHT_DENOMINATOR)
         elif flag_index != TIMELY_HEAD_FLAG_INDEX:
-            penalties[index] += Gwei(base_reward *
-                                     weight // WEIGHT_DENOMINATOR)
+            penalties[index] += base_reward * weight // WEIGHT_DENOMINATOR
     return rewards, penalties
