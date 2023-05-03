@@ -1,5 +1,5 @@
 from rlp import Serializable
-from rlp.sedes import boolean, List, CountableList
+from rlp.sedes import boolean, CountableList
 
 from config import *
 from containers.checkpoint import Checkpoint
@@ -11,12 +11,14 @@ class AttestationData(Serializable):
     for each of the LMD GHOST & Casper FFG consensus mechanisms.
     '''
 
+    Serializable._in_mutable_context = True
+
     fields = (
-        ('slot', Slot),
-        ('index', CommitteeIndex),
+        ('slot', Slot()),
+        ('index', CommitteeIndex()),
 
         # LMD GHOST vote
-        ('beacon_block_root', Root),
+        ('beacon_block_root', Root()),
 
         # FFG vote
         ('source', Checkpoint),
@@ -31,9 +33,11 @@ class Attestation(Serializable):
     single attestation by aggregating the signatures.
     '''
 
+    Serializable._in_mutable_context = True
+    
     fields = (
         # bit-list indicating all validators that have attested to the required data 
-        ('aggregation_bits', List([boolean for i in range(MAX_VALIDATORS_PER_COMMITTEE)])),
+        ('aggregation_bits', CountableList(boolean, max_length=MAX_VALIDATORS_PER_COMMITTEE)),
         ('data', AttestationData),
         ('signature', BLSSignature),
     )
@@ -46,9 +50,37 @@ class IndexedAttestation(Serializable):
     Used for attester slashing
     '''
 
+    Serializable._in_mutable_context = True
+    
     fields = (
         # list of indices of validators based on the global validator registry
-        ('aggregation_bits', CountableList(ValidatorIndex, max_length=MAX_VALIDATORS_PER_COMMITTEE)),
+        ('aggregation_bits', CountableList(ValidatorIndex(), max_length=MAX_VALIDATORS_PER_COMMITTEE)),
         ('data', AttestationData),
-        ('signature', BLSSignature),
+        ('signature', BLSSignature()),
+    )
+
+
+
+class AggregateAndProof(Serializable):
+    '''
+    '''
+
+    Serializable._in_mutable_context = True
+    
+    fields = (
+        ('aggregator_index', ValidatorIndex()),
+        ('aggregate', Attestation),
+        ('selection_proof', BLSSignature()),
+    )
+
+
+class SignedAggregateAndProof(Serializable):
+    '''
+    '''
+
+    Serializable._in_mutable_context = True
+    
+    fields = (
+        ('message', AggregateAndProof),
+        ('signature', BLSSignature()),
     )

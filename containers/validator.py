@@ -9,9 +9,11 @@ class Validator(Serializable):
     with only validators' balances stored elsewhere.
     '''
 
+    Serializable._in_mutable_context = True
+    
     fields = (
-        ('pubkey', BLSPubkey), # stored raw
-        ('effective_balance', Gwei),  # Balance at stake
+        ('pubkey', BLSPubkey()), # stored raw
+        ('effective_balance', Gwei()),  # Balance at stake
         ('slashed', boolean),
     )
 

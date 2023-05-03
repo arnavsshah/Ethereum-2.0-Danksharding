@@ -9,7 +9,9 @@ class SigningData(Serializable):
     The SigningData object itself is never stored or transmitted.
     '''
 
+    Serializable._in_mutable_context = True
+    
     fields = (
-        ('object_root', Root),
-        ('domain', Domain)
+        ('object_root', Root()),
+        ('domain', Domain())
     )

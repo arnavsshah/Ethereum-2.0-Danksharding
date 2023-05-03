@@ -31,3 +31,17 @@ def bytes_to_int(data: bytes) -> int:
     Return the integer deserialization of ``data`` interpreted as ``ENDIANNESS``-endian.
     """
     return int.from_bytes(data, byteorder=ENDIANNESS)
+
+
+def fake_exponential(numerator: int, denominator: int) -> int:
+    """
+    Approximates 2 ** (numerator / denominator), with the simplest possible approximation 
+    that is continuous and has a continuous derivative
+    """
+
+    cofactor = 2 ** (numerator // denominator)
+    fractional = numerator % denominator
+    return cofactor + (
+        fractional * cofactor * 2 +
+        (fractional ** 2 * cofactor) // denominator
+    ) // (denominator * 3)

@@ -1,10 +1,9 @@
 from config import *
 
+from helper_funcs.misc import hash
 from helper_funcs.math import int_to_bytes, integer_squareroot
 from helper_funcs.misc import compute_epoch_at_slot, compute_start_slot_at_epoch, compute_committee, compute_proposer_index, compute_domain
 from helper_funcs.participation_flags import has_flag
-
-from state_transition_funcs.epoch_processing import get_base_reward, get_eligible_validator_indices
 
 from containers.beacon_state import BeaconState
 from containers.attestation import Attestation, IndexedAttestation, AttestationData
@@ -95,8 +94,7 @@ def get_beacon_proposer_index(state: BeaconState) -> ValidatorIndex:
     Return the beacon proposer index at the current slot.
     """
     epoch = get_current_epoch(state)
-    seed = hash(get_seed(state, epoch, DOMAIN_BEACON_PROPOSER) +
-                int_to_bytes(state.slot))
+    seed = hash(get_seed(state, epoch, DOMAIN_BEACON_PROPOSER) + int_to_bytes(state.slot))
     indices = get_active_validator_indices(state, epoch)
     return compute_proposer_index(state, indices, seed)
 
@@ -141,7 +139,7 @@ def get_indexed_attestation(state: BeaconState, attestation: Attestation) -> Ind
 
 def get_attesting_indices(state: BeaconState,
                           data: AttestationData,
-                          bits: List[boolean]) -> Set[ValidatorIndex]:
+                          bits: List[bool]) -> Set[ValidatorIndex]:
     """
     Return the set of attesting indices corresponding to ``data`` and ``bits``.
     """
@@ -159,8 +157,7 @@ def get_unslashed_participating_indices(state: BeaconState, flag_index: int, epo
     else:
         epoch_participation = state.previous_epoch_participation
     active_validator_indices = get_active_validator_indices(state, epoch)
-    participating_indices = [i for i in active_validator_indices if has_flag(
-        epoch_participation[i], flag_index)]
+    participating_indices = [i for i in active_validator_indices if has_flag(epoch_participation[i], flag_index)]
     return set(filter(lambda index: not state.validators[index].slashed, participating_indices))
 
 
@@ -194,6 +191,11 @@ def get_attestation_participation_flag_indices(state: BeaconState,
     return participation_flag_indices
 
 
+def get_eligible_validator_indices(state: BeaconState) -> List[ValidatorIndex]:
+    previous_epoch = get_previous_epoch(state)
+    return [index for index, v in enumerate(state.validators)]
+
+
 def get_flag_index_deltas(state: BeaconState, flag_index: int) -> Tuple[List[Gwei], List[Gwei]]:
     """
     Return the deltas for a given ``flag_index`` by scanning through the participation flags.
@@ -219,3 +221,17 @@ def get_flag_index_deltas(state: BeaconState, flag_index: int) -> Tuple[List[Gwe
         elif flag_index != TIMELY_HEAD_FLAG_INDEX:
             penalties[index] += base_reward * weight // WEIGHT_DENOMINATOR
     return rewards, penalties
+
+
+# moved here from epoch processing due to circular import
+
+def get_base_reward_per_increment(state: BeaconState) -> Gwei:
+    return EFFECTIVE_BALANCE_INCREMENT * BASE_REWARD_FACTOR // integer_squareroot(get_total_active_balance(state))
+
+
+def get_base_reward(state: BeaconState, index: ValidatorIndex) -> Gwei:
+    """
+    Return the base reward for the validator defined by ``index`` with respect to the current ``state``.
+    """
+    increments = state.validators[index].effective_balance // EFFECTIVE_BALANCE_INCREMENT
+    return increments * get_base_reward_per_increment(state)

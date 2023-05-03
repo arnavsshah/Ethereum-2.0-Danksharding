@@ -6,10 +6,10 @@ from config import *
 
 from typing import List
 
-def Sign(privkey: int, message: bytes) -> BLSSignature:
+def Sign(privkey: str, message: bytes) -> BLSSignature:
     params = setup() # generate the public parameters
 
-    privkey_bignumber = Bn.from_decimal(str(privkey))
+    privkey_bignumber = Bn.from_decimal(privkey)
 
     return sign(params, privkey_bignumber, message).export()
 

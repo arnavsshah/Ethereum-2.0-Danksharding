@@ -9,7 +9,9 @@ class Checkpoint(Serializable):
     the status of recent checkpoints is recorded in BeaconState.
     '''
 
+    Serializable._in_mutable_context = True
+    
     fields = (
-        ('epoch', Epoch),  # occurs at the 1st slot of every epoch
-        ('root', Root)  # block root of the first block in the epoch (or earlier block is some slots have been skipped)
+        ('epoch', Epoch()),  # occurs at the 1st slot of every epoch
+        ('root', Root())  # block root of the first block in the epoch (or earlier block is some slots have been skipped)
     )

@@ -4,7 +4,6 @@ from helper_funcs.math import integer_squareroot
 from helper_funcs.misc import hash_tree_root
 from helper_funcs.beacon_state_accesors import get_randao_mix, get_current_epoch, get_unslashed_participating_indices, get_total_active_balance, get_total_balance, get_previous_epoch, get_block_root, get_flag_index_deltas
 from helper_funcs.beacon_state_mutators import increase_balance, decrease_balance
-from helper_funcs.predicates import is_active_validator
 
 from containers.beacon_state import BeaconState
 from containers.checkpoint import Checkpoint
@@ -76,29 +75,9 @@ def weigh_justification_and_finalization(state: BeaconState,
         state.finalized_checkpoint = old_current_justified_checkpoint
 
 
-    
-def get_base_reward_per_increment(state: BeaconState) -> Gwei:
-    return EFFECTIVE_BALANCE_INCREMENT * BASE_REWARD_FACTOR // integer_squareroot(get_total_active_balance(state))
-
-
-def get_base_reward(state: BeaconState, index: ValidatorIndex) -> Gwei:
-    """
-    Return the base reward for the validator defined by ``index`` with respect to the current ``state``.
-    """
-    increments = state.validators[index].effective_balance // EFFECTIVE_BALANCE_INCREMENT
-    return increments * get_base_reward_per_increment(state)
-
-
 def get_finality_delay(state: BeaconState) -> int:
     return get_previous_epoch(state) - state.finalized_checkpoint.epoch
 
-
-def get_eligible_validator_indices(state: BeaconState) -> List[ValidatorIndex]:
-    previous_epoch = get_previous_epoch(state)
-    return [
-        index for index, v in enumerate(state.validators)
-        if is_active_validator(v, previous_epoch) or v.slashed
-    ]
 
 def process_rewards_and_penalties(state: BeaconState) -> None:
     # No rewards are applied at the end of `GENESIS_EPOCH` because rewards are for work done in the previous epoch

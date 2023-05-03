@@ -1,4 +1,8 @@
-from .custom_types import *
+from .types import *
+
+# Across all beacon states
+GENESIS_TIME = 0
+GENESIS_VALIDATORS_ROOT = b'Blockchain is great!'
 
 # Misc
 GENESIS_SLOT = 0
@@ -40,3 +44,6 @@ DOMAIN_SYNC_COMMITTEE_SELECTION_PROOF = bytes.fromhex('08000000')
 DOMAIN_CONTRIBUTION_AND_PROOF = bytes.fromhex('09000000')
 
 
+# blob transaction type
+BLOB_COMMITMENT_VERSION_KZG = bytes.fromhex('01100000')
+BLOB_TX_TYPE = bytes.fromhex('01300000')

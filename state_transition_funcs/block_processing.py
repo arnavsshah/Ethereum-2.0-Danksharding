@@ -7,13 +7,14 @@ from helper_funcs.beacon_state_mutators import slash_validator, increase_balance
 from helper_funcs.predicates import is_slashable_validator, is_slashable_attestation_data, is_valid_indexed_attestation
 import helper_funcs.bls_utils as bls
 from helper_funcs.participation_flags import has_flag, add_flag
+
 from state_transition_funcs.epoch_processing import get_base_reward
+from state_transition_funcs.execution_engine import notify_new_payload
 
 from containers.beacon_state import BeaconState
-from containers.beacon_block import BeaconBlock, BeaconBlockHeader, BeaconBlockBody
+from containers.beacon_block import BeaconBlock, BeaconBlockHeader, BeaconBlockBody, ProposerSlashing, AttesterSlashing
 from containers.execution_payload import ExecutionPayload, ExecutionPayloadHeader
 from containers.attestation import Attestation
-from containers.beacon_ops import ProposerSlashing, AttesterSlashing
 
 from typing import List, Any, Callable
 
@@ -21,8 +22,7 @@ from typing import List, Any, Callable
 
 def process_block(state: BeaconState, block: BeaconBlock) -> None:
     process_block_header(state, block)
-    if is_execution_enabled(state, block.body):
-        process_execution_payload(state, block.body.execution_payload, EXECUTION_ENGINE)  # [New in Bellatrix]
+    process_execution_payload(state, block.body.execution_payload)  # [New in Bellatrix]
     process_randao(state, block.body)
     process_operations(state, block.body)  # [Modified in Altair]
 
@@ -51,7 +51,7 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
 
 
 
-def process_execution_payload(state: BeaconState, payload: ExecutionPayload, execution_engine: ExecutionEngine) -> None:
+def process_execution_payload(state: BeaconState, payload: ExecutionPayload) -> None:
     # Verify consistency of the parent hash with respect to the previous execution payload header
     assert payload.parent_hash == state.latest_execution_payload_header.block_hash
     # Verify prev_randao
@@ -59,23 +59,19 @@ def process_execution_payload(state: BeaconState, payload: ExecutionPayload, exe
     # Verify timestamp
     assert payload.timestamp == compute_timestamp_at_slot(state, state.slot)
     # Verify the execution payload is valid
-    assert execution_engine.notify_new_payload(payload)
+    assert notify_new_payload(payload)
     # Cache execution payload header
     state.latest_execution_payload_header = ExecutionPayloadHeader(
         parent_hash=payload.parent_hash,
         fee_recipient=payload.fee_recipient,
         state_root=payload.state_root,
-        receipts_root=payload.receipts_root,
-        logs_bloom=payload.logs_bloom,
         prev_randao=payload.prev_randao,
-        block_number=payload.block_number,
         gas_limit=payload.gas_limit,
         gas_used=payload.gas_used,
         timestamp=payload.timestamp,
-        extra_data=payload.extra_data,
         base_fee_per_gas=payload.base_fee_per_gas,
         block_hash=payload.block_hash,
-        transactions_root=hash_tree_root(payload.transactions),
+        transactblob_transactions_rootions_root=hash_tree_root(payload.blob_transactions),
     )
 
 

@@ -4,6 +4,9 @@ from helper_funcs.misc import hash_tree_root, compute_signing_root
 import helper_funcs.bls_utils as bls
 from helper_funcs.beacon_state_accesors import get_domain
 
+from state_transition_funcs.block_processing import process_block
+from state_transition_funcs.epoch_processing import process_epoch
+
 from containers.beacon_state import BeaconState
 from containers.beacon_block import SignedBeaconBlock
 
@@ -25,7 +28,6 @@ def state_transition(state: BeaconState, signed_block: SignedBeaconBlock, valida
         assert block.state_root == hash_tree_root(state)
 
 
-
 def verify_block_signature(state: BeaconState, signed_block: SignedBeaconBlock) -> bool:
     proposer = state.validators[signed_block.message.proposer_index]
     signing_root = compute_signing_root(signed_block.message, get_domain(state, DOMAIN_BEACON_PROPOSER))
@@ -45,7 +47,10 @@ def process_slots(state: BeaconState, slot: Slot) -> None:
 def process_slot(state: BeaconState) -> None:
     # Cache state root
     previous_state_root = hash_tree_root(state)
-    state.state_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_state_root
+
+    state_roots = list(state.state_roots)
+    state_roots[state.slot % SLOTS_PER_HISTORICAL_ROOT] = previous_state_root
+    state.state_roots = state_roots
     
     # Cache latest block header state root
     if state.latest_block_header.state_root == bytes('', 'utf-8'):  # set in process_block_header()
