@@ -50,7 +50,6 @@ class ExecutionPayloadWithoutBlockHash(Serializable):
         ('base_fee_per_gas', big_endian_int),
 
         # Extra payload fields
-        # TODO - check max len 
         ('blob_transactions', CountableList(SignedBlobTransaction, max_length=MAX_TRANSACTIONS_PER_PAYLOAD))
     )
 

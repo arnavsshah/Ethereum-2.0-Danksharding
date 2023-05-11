@@ -2,6 +2,7 @@ import threading
 import threading
 from termcolor import cprint
 from collections import defaultdict
+from queue import Queue
 
 from rlp import encode, decode
 
@@ -31,7 +32,7 @@ from typing import Optional, List, Tuple
 class Node(threading.Thread):
     def __init__(self, id: int, privkey: str, pubkey: BLSPubkey,
                 genesis_beacon_block: SignedBeaconBlock, genesis_beacon_state: BeaconState,
-                main_subnet: List, proposer_subnet: List, attestation_subnets: List[List]):
+                main_subnet: List, proposer_subnet: List, attestation_subnets: List[List], txn_queue: Queue):
         super(Node, self).__init__()
 
         self.id = id
@@ -47,7 +48,9 @@ class Node(threading.Thread):
 
         self.main_subnet = main_subnet
         self.proposer_subnet = proposer_subnet
-        self.attestation_subnets = attestation_subnets 
+        self.attestation_subnets = attestation_subnets
+
+        self.txn_queue = txn_queue
 
         self.validator_index = self.get_validator_index()
 
@@ -110,9 +113,12 @@ class Node(threading.Thread):
                         # propose a block only once in the given slot if selected
                         if self.is_proposer(temp_state) and curr_slot not in self.my_proposed_blocks:
                             block = self.propose_block(curr_slot)
-                            self.proposer_subnet.append(block)
-                            self.my_proposed_blocks[curr_slot] = encode(block)
-                            cprint(f'{self.id}: Signed beacon block proposed for slot {curr_slot}, epoch {curr_epoch}', 'yellow')
+                            if block is None:
+                                cprint(f'{self.id}: No more transactions to add to blockchain at slot {curr_slot}, epoch {curr_epoch}', 'dark_grey')
+                            else:
+                                self.proposer_subnet.append(block)
+                                self.my_proposed_blocks[curr_slot] = encode(block)
+                                cprint(f'{self.id}: Signed beacon block proposed for slot {curr_slot}, epoch {curr_epoch}', 'yellow')
 
                         if self.current_attestation_assignment is None:
                             return
@@ -260,8 +266,6 @@ class Node(threading.Thread):
                                                 cprint(f'{self.id}: Invalid block aggregated and attested by validators at slot {curr_slot}, epoch {curr_epoch}, proposer index: {proposed_block.message.proposer_index}', 'red')
                                                 return
 
-                                    
-
                         per_interval.interval_timer = threading.Timer(SECONDS_PER_SLOT / INTERVALS_PER_SLOT, per_interval)
                         per_interval.interval_timer.start()
 
@@ -305,9 +309,13 @@ class Node(threading.Thread):
         return bls.Sign(self.privkey, signing_root)
 
 
-    # TODO
-    def get_blob_transactions(self) -> List[SignedBlobTransaction]:    
-        return []
+    def get_blob_transactions(self) -> List[SignedBlobTransaction]:
+        blob_transactions = []
+        for _ in range(10):
+            if not self.txn_queue.empty():
+                blob_transactions.append(decode(self.txn_queue.get(), SignedBlobTransaction))
+
+        return blob_transactions
 
 
     def get_execution_payload(self, slot: Slot) -> ExecutionPayload:
@@ -320,17 +328,20 @@ class Node(threading.Thread):
         gas_used = 0
         timestamp = compute_timestamp_at_slot(self.beacon_state, slot)
         base_fee_per_gas = 0
+
         blob_transactions = self.get_blob_transactions()
+        if not blob_transactions:
+            return None
 
         execution_payload = build_execution_payload(parent_hash=parent_hash, 
-                                                fee_recipient=fee_recipient, 
-                                                state_root=state_root,
-                                                prev_randao=prev_randao,
-                                                gas_limit=gas_limit,
-                                                gas_used=gas_used, 
-                                                timestamp=timestamp, 
-                                                base_fee_per_gas=base_fee_per_gas,
-                                                blob_transactions=blob_transactions)
+                                                    fee_recipient=fee_recipient, 
+                                                    state_root=state_root,
+                                                    prev_randao=prev_randao,
+                                                    gas_limit=gas_limit,
+                                                    gas_used=gas_used, 
+                                                    timestamp=timestamp, 
+                                                    base_fee_per_gas=base_fee_per_gas,
+                                                    blob_transactions=blob_transactions)
         
         return execution_payload
 
@@ -354,13 +365,16 @@ class Node(threading.Thread):
         proposer_slashings = []
         attester_slashings = []
         attestations = []
-        execution_payload = self.get_execution_payload(slot)
 
+        execution_payload = self.get_execution_payload(slot)
+        if execution_payload is None:
+            return None
+        
         beacon_block_body = build_beacon_block_body(randao_reveal=randao_reveal,
-                                                proposer_slashings=proposer_slashings,
-                                                attester_slashings=attester_slashings,
-                                                attestations=attestations,
-                                                execution_payload=execution_payload)
+                                                    proposer_slashings=proposer_slashings,
+                                                    attester_slashings=attester_slashings,
+                                                    attestations=attestations,
+                                                    execution_payload=execution_payload)
         
         proposer_index = self.validator_index
         parent_root = hash_tree_root(build_beacon_block_header(self.beacon_chain_head.message))

@@ -1,5 +1,5 @@
 rlp
-bls-lib
 bplib
+bls-lib
 py_ecc
 pynacl

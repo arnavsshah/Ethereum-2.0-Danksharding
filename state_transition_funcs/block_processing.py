@@ -71,7 +71,7 @@ def process_execution_payload(state: BeaconState, payload: ExecutionPayload) -> 
         timestamp=payload.timestamp,
         base_fee_per_gas=payload.base_fee_per_gas,
         block_hash=payload.block_hash,
-        blob_transactions_root=hash_tree_root(payload.blob_transactions),  # TODO add sedes to hash_tree_root()
+        blob_transactions_root=hash_tree_root(payload.blob_transactions),
     )
 
 

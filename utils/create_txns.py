@@ -93,10 +93,10 @@ def create_txn(private_keys: List[bytes], public_keys: List[bytes],
 
             sender_sk = SigningKey(private_keys[sender_index], encoder=HexEncoder)
 
-            signature = sender_sk.sign(encode(txn), encoder=HexEncoder).signature
+            signature = sender_sk.sign(encode(txn, BlobTransaction), encoder=HexEncoder).signature
             signed_txn = SignedBlobTransaction(message=txn, signature=signature)
 
-            return encode(signed_txn)
+            return encode(signed_txn, SignedBlobTransaction)
 
 
 def create_txns(txn_private_keys_file: str = 'data/txn_private_keys.pkl',
