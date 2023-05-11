@@ -1,4 +1,4 @@
-# blockchain-dankharding
+# Ethereum 2.0: Dankharding
 
 Documentation 
 - https://eth2book.info/
