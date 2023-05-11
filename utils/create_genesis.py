@@ -3,13 +3,14 @@ from config import *
 import pickle
 
 from helper_funcs.misc import hash_tree_root
+from nacl.encoding import HexEncoder
 
 from builder_utils.execution_payload_builder import build_execution_payload, build_execution_payload_header
-from builder_utils.beacon_block_builder import build_beacon_block_body, build_beacon_block, build_beacon_block_header
+from builder_utils.beacon_block_builder import build_beacon_block_body, build_beacon_block, build_signed_beacon_block, build_beacon_block_header
 from builder_utils.checkpoint_builder import build_checkpoint
 from builder_utils.validator_builder import build_validator
 
-from containers.beacon_block import BeaconBlock, BeaconBlockHeader, BeaconBlockBody
+from containers.beacon_block import SignedBeaconBlock, BeaconBlock, BeaconBlockHeader, BeaconBlockBody
 from containers.beacon_state import BeaconState
 from containers.checkpoint import Checkpoint
 from containers.execution_payload import ExecutionPayload, ExecutionPayloadHeader
@@ -88,6 +89,16 @@ def get_genesis_beacon_block(genesis_beacon_block_body: BeaconBlockBody) -> Beac
     return genesis_beacon_block
 
 
+def get_genesis_signed_beacon_block(genesis_beacon_block: BeaconBlock) -> SignedBeaconBlock:
+    message = genesis_beacon_block
+    signature = b'stub'
+
+    genesis_signed_beacon_block = build_signed_beacon_block(message=message,
+                                                            signature=signature)
+
+    return genesis_signed_beacon_block
+
+
 def get_genesis_beacon_block_header(genesis_beacon_block: BeaconBlock) -> BeaconBlockHeader:
     return build_beacon_block_header(genesis_beacon_block)
 
@@ -118,21 +129,20 @@ def get_genesis_state(genesis_beacon_block_header: BeaconBlockHeader,
                                 genesis_validators_root=GENESIS_VALIDATORS_ROOT,
                                 slot=0,
                                 latest_block_header=genesis_beacon_block_header,
-                                block_roots=[],
-                                state_roots=[],
+                                block_roots=[b'stub' for _ in range(SLOTS_PER_HISTORICAL_ROOT)],
+                                state_roots=[b'stub' for _ in range(SLOTS_PER_HISTORICAL_ROOT)],
                                 validators=validators,
                                 balances=[32 for _ in validators],
-                                randao_mixes=[seed_randomness] * EPOCHS_PER_HISTORICAL_VECTOR,
-                                slashings=[],
-                                previous_epoch_participation=[],
-                                current_epoch_participation=[],
-                                justification_bits=[],
+                                randao_mixes=[seed_randomness for _ in range(EPOCHS_PER_HISTORICAL_VECTOR)],
+                                slashings=[0 for _ in range(EPOCHS_PER_SLASHINGS_VECTOR)],
+                                previous_epoch_participation=[0 for _ in validators],
+                                current_epoch_participation=[0 for _ in validators],
+                                justification_bits=[0, 0, 0, 0],
                                 previous_justified_checkpoint=genesis_checkpoint,
                                 current_justified_checkpoint=genesis_checkpoint,
                                 finalized_checkpoint=genesis_checkpoint,
                                 latest_execution_payload_header=genesis_execution_payload_header
                                 )
-
 
     return genesis_state
 
@@ -146,7 +156,7 @@ def create_genesis():
         validator_bls_public_keys = pickle.load(f)
 
     # validators
-    validators = [build_validator(pubkey=pubkey, effective_balance=32, slashed=False) for pubkey in validator_bls_public_keys]
+    validators = [build_validator(pubkey=HexEncoder.decode(pubkey), effective_balance=32, slashed=False) for pubkey in validator_bls_public_keys]
 
     # execution payload
     genesis_execution_payload = get_genesis_execution_payload()
@@ -155,17 +165,20 @@ def create_genesis():
     # beacon block
     genesis_beacon_block_body = get_genesis_beacon_block_body(genesis_execution_payload=genesis_execution_payload)
     genesis_beacon_block = get_genesis_beacon_block(genesis_beacon_block_body=genesis_beacon_block_body)
+    genesis_signed_beacon_block = get_genesis_signed_beacon_block(genesis_beacon_block=genesis_beacon_block)
     genesis_beacon_block_header = get_genesis_beacon_block_header(genesis_beacon_block=genesis_beacon_block)
 
     # checkpoint
-    # genesis_checkpoint = get_genesis_checkpoint(genesis_block_root=hash_tree_root(genesis_beacon_block))
-    genesis_checkpoint = get_genesis_checkpoint(genesis_block_root=b'stub')
+    # genesis_checkpoint = get_genesis_checkpoint(root=hash_tree_root(genesis_beacon_block))
+    genesis_checkpoint = get_genesis_checkpoint(root=b'stub')
 
     # beacon state
     genesis_beacon_state = get_genesis_state(genesis_beacon_block_header=genesis_beacon_block_header,
                                             validators=validators,
                                             genesis_checkpoint=genesis_checkpoint,
                                             genesis_execution_payload_header=genesis_execution_payload_header)
+    
+    state_root = hash_tree_root(genesis_beacon_state)
+    genesis_signed_beacon_block.message.state_root = state_root
 
-
-    return genesis_beacon_block, genesis_beacon_state
+    return genesis_signed_beacon_block, genesis_beacon_state

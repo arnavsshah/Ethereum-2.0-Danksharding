@@ -8,14 +8,22 @@ def increase_balance(state: BeaconState, index: ValidatorIndex, delta: Gwei) -> 
     """
     Increase the validator balance at index ``index`` by ``delta``.
     """
-    state.balances[index] += delta
-
+    balances = list(state.balances)
+    balances[index] += delta
+    state.balances = tuple(balances)
 
 def decrease_balance(state: BeaconState, index: ValidatorIndex, delta: Gwei) -> None:
     """
     Decrease the validator balance at index ``index`` by ``delta``, with underflow protection.
     """
-    state.balances[index] = 0 if delta > state.balances[index] else state.balances[index] - delta
+    if delta > state.balances[index]:
+        balances = list(state.balances)
+        balances[index] = 0
+        state.balances = tuple(balances)
+    else:
+        balances = list(state.balances)
+        balances[index] -= delta
+        state.balances = tuple(balances)
 
 
 

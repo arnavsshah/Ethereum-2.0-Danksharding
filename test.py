@@ -1,6 +1,10 @@
 from rlp import Serializable, encode, decode
 from rlp.sedes import big_endian_int, binary, List, boolean, CountableList
+from nacl.encoding import HexEncoder
+import helper_funcs.bls_utils as bls
 from config import *
+import pickle
+
 
 sender_type = type(big_endian_int)
 
@@ -21,6 +25,4 @@ d1 = decode(e1, A)
 d2 = decode(e2, A)
 
 print(e1 == e2)
-print(d1, d2)
-
-
+print(a, b)

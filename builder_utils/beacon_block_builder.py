@@ -45,5 +45,6 @@ def build_beacon_block_header(beacon_block: BeaconBlock) -> BeaconBlockHeader:
                             state_root=beacon_block.state_root,
                             body_root=body_root)
 
+
 def build_signed_beacon_block(message: BeaconBlock, signature: BLSSignature) -> SignedBeaconBlock:
     return SignedBeaconBlock(message=message, signature=signature)

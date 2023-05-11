@@ -48,16 +48,20 @@ def weigh_justification_and_finalization(state: BeaconState,
 
     # Process justifications
     state.previous_justified_checkpoint = state.current_justified_checkpoint
-    state.justification_bits[1:] = state.justification_bits[:JUSTIFICATION_BITS_LENGTH - 1]
-    state.justification_bits[0] = 0  # 0b0 -> 0
+
+    justification_bits = list(state.justification_bits)
+    justification_bits[1:] = justification_bits[:JUSTIFICATION_BITS_LENGTH - 1]
+    justification_bits[0] = 0  # 0b0 -> 0
     if previous_epoch_target_balance * 3 >= total_active_balance * 2:
         state.current_justified_checkpoint = Checkpoint(epoch=previous_epoch,
                                                         root=get_block_root(state, previous_epoch))
-        state.justification_bits[1] = 1  # 0b1 -> 1
+        justification_bits[1] = 1  # 0b1 -> 1
     if current_epoch_target_balance * 3 >= total_active_balance * 2:
         state.current_justified_checkpoint = Checkpoint(epoch=current_epoch,
                                                         root=get_block_root(state, current_epoch))
-        state.justification_bits[0] = 1  # 0b1 -> 1
+        justification_bits[0] = 1  # 0b1 -> 1
+
+    state.justification_bits = tuple(justification_bits)
 
     # Process finalizations
     bits = state.justification_bits
@@ -125,19 +129,22 @@ def process_effective_balance_updates(state: BeaconState) -> None:
 def process_slashings_reset(state: BeaconState) -> None:
     next_epoch = get_current_epoch(state) + 1
     # Reset slashings
-    state.slashings[next_epoch % EPOCHS_PER_SLASHINGS_VECTOR] = 0
+    slashings = list(state.slashings)
+    slashings[next_epoch % EPOCHS_PER_SLASHINGS_VECTOR] = 0
+    state.slashings = tuple(slashings)
 
 
 def process_randao_mixes_reset(state: BeaconState) -> None:
     current_epoch = get_current_epoch(state)
     next_epoch = current_epoch + 1
     # Set randao mix
-    state.randao_mixes[next_epoch % EPOCHS_PER_HISTORICAL_VECTOR] = get_randao_mix(state, current_epoch)
-
+    randao_mixes = list(state.randao_mixes)
+    randao_mixes[next_epoch % EPOCHS_PER_HISTORICAL_VECTOR] = get_randao_mix(state, current_epoch)
+    state.randao_mixes = tuple(randao_mixes)
 
 def process_participation_flag_updates(state: BeaconState) -> None:
     state.previous_epoch_participation = state.current_epoch_participation
-    state.current_epoch_participation = [0 for _ in range(len(state.validators))]
+    state.current_epoch_participation = tuple([0 for _ in range(len(state.validators))])
 
 
 

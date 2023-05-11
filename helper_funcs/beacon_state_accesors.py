@@ -37,6 +37,7 @@ def get_block_root_at_slot(state: BeaconState, slot: Slot) -> Root:
     """
     Return the block root at a recent ``slot``.
     """
+
     assert slot < state.slot <= slot + SLOTS_PER_HISTORICAL_ROOT
     return state.block_roots[slot % SLOTS_PER_HISTORICAL_ROOT]
 
@@ -116,7 +117,7 @@ def get_total_active_balance(state: BeaconState) -> Gwei:
     return get_total_balance(state, set(get_active_validator_indices(state, get_current_epoch(state))))
 
 
-def get_domain(state: BeaconState, domain_type: DomainType, epoch: Epoch = None) -> Domain:
+def get_domain(domain_type: DomainType) -> Domain:
     """
     Return the signature domain (domain type - 32 bytes) of a message.
     """

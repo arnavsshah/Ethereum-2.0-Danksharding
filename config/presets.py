@@ -8,7 +8,7 @@ SHUFFLE_ROUND_COUNT = 10
 
 
 # aggregator selection
-TARGET_AGGREGATORS_PER_COMMITTEE = 1
+TARGET_AGGREGATORS_PER_COMMITTEE = 3  # makes module=1 in is_aggregator(). See its comment for more details
 
 
 # Hysterisis parameters
@@ -28,7 +28,7 @@ EFFECTIVE_BALANCE_INCREMENT = 2**0 * 10**9  # (= 1,000,000,000)
 MIN_ATTESTATION_INCLUSION_DELAY = 1  # ~12 seconds
 SLOTS_PER_EPOCH = 4
 MIN_SEED_LOOKAHEAD = 1
-SLOTS_PER_HISTORICAL_ROOT = 2 ** 13  # (=8,192) ~27 hours
+SLOTS_PER_HISTORICAL_ROOT = 2 ** 5  # (=64)
 
 
 # subnets
@@ -36,9 +36,9 @@ ATTESTATION_SUBNET_COUNT = SLOTS_PER_EPOCH * MAX_COMMITTEES_PER_SLOT
 
 
 # State list lengths
-EPOCHS_PER_SLASHINGS_VECTOR = 2 ** 13  # (=8,192) - too compelx to use maybe?
-VALIDATOR_REGISTRY_LIMIT = 2**40  # (= 1,099,511,627,776)
-EPOCHS_PER_HISTORICAL_VECTOR = 2 ** 16  # (=65,536) ~0.8 years
+EPOCHS_PER_SLASHINGS_VECTOR = 2 ** 5  # (=32)
+VALIDATOR_REGISTRY_LIMIT = 2**5  # (=32)
+EPOCHS_PER_HISTORICAL_VECTOR = 2 ** 6  # (=64)
 
 
 # Rewards and Penalties

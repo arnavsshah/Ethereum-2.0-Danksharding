@@ -1,14 +1,13 @@
 from config import *
 
 from helper_funcs.math import xor
-from helper_funcs.misc import hash_tree_root, compute_signing_root, compute_timestamp_at_slot
-from helper_funcs.beacon_state_accesors import get_attestation_participation_flag_indices, get_attesting_indices, get_indexed_attestation, get_beacon_proposer_index, get_current_epoch, get_randao_mix, get_domain, compute_epoch_at_slot, get_beacon_committee, get_committee_count_per_slot, get_previous_epoch
+from helper_funcs.misc import hash, hash_tree_root, compute_signing_root, compute_timestamp_at_slot
+from helper_funcs.beacon_state_accesors import get_attestation_participation_flag_indices, get_base_reward, get_attesting_indices, get_indexed_attestation, get_beacon_proposer_index, get_current_epoch, get_randao_mix, get_domain, compute_epoch_at_slot, get_beacon_committee, get_committee_count_per_slot, get_previous_epoch
 from helper_funcs.beacon_state_mutators import slash_validator, increase_balance
 from helper_funcs.predicates import is_slashable_validator, is_slashable_attestation_data, is_valid_indexed_attestation
 import helper_funcs.bls_utils as bls
 from helper_funcs.participation_flags import has_flag, add_flag
 
-from state_transition_funcs.epoch_processing import get_base_reward
 from state_transition_funcs.execution_engine import notify_new_payload
 
 from containers.beacon_state import BeaconState
@@ -41,7 +40,7 @@ def process_block_header(state: BeaconState, block: BeaconBlock) -> None:
         slot=block.slot,
         proposer_index=block.proposer_index,
         parent_root=block.parent_root,
-        state_root=bytes('', 'utf-8'),  # Overwritten in the next process_slot call
+        state_root=b'stub',  # Overwritten in the next process_slot call
         body_root=hash_tree_root(block.body),
     )
 
@@ -60,6 +59,7 @@ def process_execution_payload(state: BeaconState, payload: ExecutionPayload) -> 
     assert payload.timestamp == compute_timestamp_at_slot(state, state.slot)
     # Verify the execution payload is valid
     assert notify_new_payload(payload)
+
     # Cache execution payload header
     state.latest_execution_payload_header = ExecutionPayloadHeader(
         parent_hash=payload.parent_hash,
@@ -71,7 +71,7 @@ def process_execution_payload(state: BeaconState, payload: ExecutionPayload) -> 
         timestamp=payload.timestamp,
         base_fee_per_gas=payload.base_fee_per_gas,
         block_hash=payload.block_hash,
-        transactblob_transactions_rootions_root=hash_tree_root(payload.blob_transactions),
+        blob_transactions_root=hash_tree_root(payload.blob_transactions),  # TODO add sedes to hash_tree_root()
     )
 
 
@@ -80,12 +80,13 @@ def process_randao(state: BeaconState, body: BeaconBlockBody) -> None:
     epoch = get_current_epoch(state)
     # Verify RANDAO reveal
     proposer = state.validators[get_beacon_proposer_index(state)]
-    signing_root = compute_signing_root(epoch, get_domain(state, DOMAIN_RANDAO))
+    signing_root = compute_signing_root(epoch, get_domain(DOMAIN_RANDAO))
     assert bls.Verify(proposer.pubkey, signing_root, body.randao_reveal)
     # Mix in RANDAO reveal
     mix = xor(get_randao_mix(state, epoch), hash(body.randao_reveal))
-    state.randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR] = mix
-
+    randao_mixes = list(state.randao_mixes)
+    randao_mixes[epoch % EPOCHS_PER_HISTORICAL_VECTOR] = mix
+    state.randao_mixes = tuple(randao_mixes)
 
 def process_operations(state: BeaconState, body: BeaconBlockBody) -> None:
 
@@ -113,7 +114,7 @@ def process_proposer_slashing(state: BeaconState, proposer_slashing: ProposerSla
     assert is_slashable_validator(proposer, get_current_epoch(state))
     # Verify signatures
     for signed_header in (proposer_slashing.signed_header_1, proposer_slashing.signed_header_2):
-        domain = get_domain(state, DOMAIN_BEACON_PROPOSER, compute_epoch_at_slot(signed_header.message.slot))
+        domain = get_domain(DOMAIN_BEACON_PROPOSER)
         signing_root = compute_signing_root(signed_header.message, domain)
         assert bls.Verify(proposer.pubkey, signing_root, signed_header.signature)
 

@@ -42,6 +42,6 @@ def is_valid_indexed_attestation(state: BeaconState, indexed_attestation: Indexe
 
     # Verify aggregate signature
     pubkeys = [state.validators[i].pubkey for i in indices]
-    domain = get_domain(state, DOMAIN_BEACON_ATTESTER, indexed_attestation.data.target.epoch)
+    domain = get_domain(DOMAIN_BEACON_ATTESTER)
     signing_root = compute_signing_root(indexed_attestation.data, domain)
     return bls.FastAggregateVerify(pubkeys, signing_root, indexed_attestation.signature)

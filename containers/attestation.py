@@ -39,7 +39,7 @@ class Attestation(Serializable):
         # bit-list indicating all validators that have attested to the required data 
         ('aggregation_bits', CountableList(boolean, max_length=MAX_VALIDATORS_PER_COMMITTEE)),
         ('data', AttestationData),
-        ('signature', BLSSignature),
+        ('signature', BLSSignature()),
     )
 
 

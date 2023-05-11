@@ -17,7 +17,7 @@ NUM_ACCS = 40
 NUM_TXNS = 1000
 INIT_BALANCE = 100
 
-NUM_VALIDATORS = 16  # 4(3 + 1), 4 slots, 3 vals per slot/committee + 1 proposer (so, need 2/3 majority or t=2, n=16 for BLS)
+NUM_VALIDATORS = 12  # 4(3), 4 slots, 3 vals per slot/committee (so, need 2/3 majority or t=2, n=12 for BLS)
 BLS_THRESHOLD = 2
 
 
@@ -54,7 +54,7 @@ def generate_bls_key_pair(num_validators: int, threshold: int) -> Tuple[List[str
         str_signing_keys.append(str(signing_key))
         str_verify_keys.append(HexEncoder.encode(verify_key.export()))
 
-    return str_signing_keys, str_verify_keys
+    return str_signing_keys, str_verify_keys, params
 
 
 # TODO - remove infinte loop later
@@ -103,6 +103,7 @@ def create_txns(txn_private_keys_file: str = 'data/txn_private_keys.pkl',
                 txn_public_keys_file: str = 'data/txn_public_keys.pkl',
                 bls_private_keys_file: str = 'data/bls_private_keys.pkl',
                 bls_public_keys_file: str = 'data/bls_public_keys.pkl',
+                params_file: str = 'data/public_params.pkl',
                 txns_file: str = 'data/txns.pkl') -> None:
     '''
     Writes transasctions key-pairs, BLS key-pairs and transactions to a pickle file
@@ -117,7 +118,7 @@ def create_txns(txn_private_keys_file: str = 'data/txn_private_keys.pkl',
 
     signed_txns = []
     txn_private_keys, txn_public_keys = generate_txn_key_pair(num_acc)
-    bls_private_keys, bls_public_keys = generate_bls_key_pair(num_validators, threshold)
+    bls_private_keys, bls_public_keys, params = generate_bls_key_pair(num_validators, threshold)
 
     txn_acc_balance = {txn_public_key: init_balance for txn_public_key in txn_public_keys}
     txn_acc_nonce = {txn_public_key: 0 for txn_public_key in txn_public_keys}
@@ -137,6 +138,9 @@ def create_txns(txn_private_keys_file: str = 'data/txn_private_keys.pkl',
 
     with open(bls_public_keys_file, 'wb') as f:
         pickle.dump(bls_public_keys, f)
+
+    # with open(params_file, 'wb') as f:
+    #     pickle.dump(params, f)
 
     with open(txns_file, 'wb') as f:
         pickle.dump(signed_txns, f)

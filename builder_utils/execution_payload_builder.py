@@ -10,9 +10,9 @@ from containers.transaction import SignedBlobTransaction
 from typing import List
 
 def build_execution_payload(parent_hash=Hash32, fee_recipient=ExecutionAddress, state_root=Bytes32,
-                        prev_randao=Bytes32, gas_limit=int,
-                        gas_used=int, timestamp=int, base_fee_per_gas=int,
-                        blob_transactions=List[SignedBlobTransaction]) -> ExecutionPayload:
+                            prev_randao=Bytes32, gas_limit=int,
+                            gas_used=int, timestamp=int, base_fee_per_gas=int,
+                            blob_transactions=List[SignedBlobTransaction]) -> ExecutionPayload:
     
 
     temp = ExecutionPayloadWithoutBlockHash(parent_hash=parent_hash,

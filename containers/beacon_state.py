@@ -21,8 +21,8 @@ class BeaconState(Serializable):
 
         # History
         ('latest_block_header', BeaconBlockHeader),
-        ('block_roots', CountableList(Root, max_length=SLOTS_PER_HISTORICAL_ROOT)),
-        ('state_roots', CountableList(Root, max_length=SLOTS_PER_HISTORICAL_ROOT)),
+        ('block_roots', CountableList(Root(), max_length=SLOTS_PER_HISTORICAL_ROOT)),
+        ('state_roots', CountableList(Root(), max_length=SLOTS_PER_HISTORICAL_ROOT)),
 
         # Registry
         ('validators', CountableList(Validator, max_length=VALIDATOR_REGISTRY_LIMIT)),

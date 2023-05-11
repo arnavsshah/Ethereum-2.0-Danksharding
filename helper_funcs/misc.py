@@ -1,4 +1,5 @@
 from hashlib import sha256
+import rlp
 from rlp import Serializable, encode
 
 from config import *
@@ -13,8 +14,13 @@ def hash(data: bytes) -> Bytes32:
     return sha256(data).digest()
 
 
+# TODO make more general rlp.sedes.serializable.SerializableBase
 def hash_tree_root(object: Serializable) -> Root:
-    data = encode(object)
+    if 'rlp' in str(type(object)) or 'containers' in str(type(object)):
+        sedes = type(object)
+    else:
+        sedes = None
+    data = encode(object, sedes)
     return sha256(data).digest()
 
 
@@ -99,10 +105,7 @@ def compute_signing_root(ssz_object: Serializable, domain: Domain) -> Root:
     """
     Return the signing root for the corresponding signing data.
     """
-    return hash_tree_root(SigningData(
-        object_root=hash_tree_root(ssz_object),
-        domain=domain,
-    ))
+    return hash_tree_root(SigningData(object_root=hash_tree_root(ssz_object), domain=domain))
 
 
 def compute_timestamp_at_slot(state: BeaconState, slot: Slot) -> int:
