@@ -21,7 +21,7 @@ from typing import List, Tuple, Set, Dict
 
 if __name__ == '__main__':
     # creates a public params file for BLS sigs as well
-#     create_txns()
+    create_txns()
     genesis_beacon_block, genesis_beacon_state = create_genesis()
 
     bls_public_keys_file = 'data/bls_public_keys.pkl'
