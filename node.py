@@ -58,11 +58,9 @@ class Node(threading.Thread):
         self.beacon_state = genesis_beacon_state.copy()
 
         self.my_proposed_blocks = {}
-
-        self.attestation_assignment = None
         self.my_attestations = {}
-
-        self.processed_blocks = defaultdict(lambda : None)
+        self.processed_blocks = {}
+        self.other_attestations = defaultdict(lambda:[])
 
         self.stop = False
     
@@ -71,10 +69,10 @@ class Node(threading.Thread):
         self.stop = True
 
 
-    # interval 1:    propose and braodcast block
-    # interval 2:    attest and broadcast attestation
-    # interval 3, 4: aggregate attestation and broadcast aggregation
-    # interval 5, 6: update beacon state and beacon block
+    # interval 1, 2: propose and braodcast block
+    # interval 3, 4: attest and broadcast attestation
+    # interval 5:    aggregate attestation and broadcast aggregation
+    # interval 6:    update beacon state and beacon block
 
     def run(self) -> None:
 
@@ -83,14 +81,17 @@ class Node(threading.Thread):
         # start of every epoch
         def per_epoch():
             
+            # handles edge case for the last slot in the genesis epoch where get_current_epoch(self.beacon_state) is still the same epoch
             if self.genesis_epoch_flag:
-                self.current_attestation_assignment = self.get_committee_assignment(self.beacon_state, 0)
+                curr_epoch = 0
                 self.genesis_epoch_flag = False
-
             else:
-                prev_epoch = get_current_epoch(self.beacon_state)
-                self.current_attestation_assignment = self.get_committee_assignment(self.beacon_state, prev_epoch + 1)
+                curr_epoch = get_current_epoch(self.beacon_state) + 1
 
+            self.current_attestation_assignment = self.get_committee_assignment(self.beacon_state, curr_epoch)
+            if self.current_attestation_assignment is not None:
+                    # current epoch's attesting params
+                    attesting_committee, attesting_index, attesting_slot = self.current_attestation_assignment
 
             epoch_timer = threading.Timer(SECONDS_PER_SLOT * SLOTS_PER_EPOCH, per_epoch)
             epoch_timer.start()
@@ -106,28 +107,7 @@ class Node(threading.Thread):
                     # block at slot 0 is already proposed (genesis beacon block). Thus, skip 0th slot only
                     if not self.genesis_slot_flag:
                         curr_slot = prev_slot + 1
-                        curr_epoch = compute_epoch_at_slot(curr_slot)
-                        temp_state = self.beacon_state.copy()
-                        process_slots(temp_state, curr_slot)
-
-                        # propose a block only once in the given slot if selected
-                        if self.is_proposer(temp_state) and curr_slot not in self.my_proposed_blocks:
-                            block = self.propose_block(curr_slot)
-                            if block is None:
-                                cprint(f'{self.id}: No more transactions to add to blockchain at slot {curr_slot}, epoch {curr_epoch}', 'dark_grey')
-                            else:
-                                self.proposer_subnet.append(block)
-                                self.my_proposed_blocks[curr_slot] = encode(block)
-                                cprint(f'{self.id}: Signed beacon block proposed for slot {curr_slot}, epoch {curr_epoch}', 'yellow')
-
-                        if self.current_attestation_assignment is None:
-                            return
-                        
-                        # current attesting params
-                        attesting_committee, attesting_index, attesting_slot = self.current_attestation_assignment
-
-                        slot_signature = self.get_slot_signature(curr_slot)
-
+                    
                     per_slot.slot_timer = threading.Timer(SECONDS_PER_SLOT, per_slot)
                     per_slot.slot_timer.start()
 
@@ -137,25 +117,43 @@ class Node(threading.Thread):
                         if per_interval.counter < INTERVALS_PER_SLOT:
                             per_interval.counter += 1
                             
-                            if attesting_slot == curr_slot:
 
-                                if self.proposer_subnet:
-                                    proposed_block = self.proposer_subnet[-1]
+                            # propose a block within the first 1/3rd of the slot
+                            if 0 <= per_interval.counter < (INTERVALS_PER_SLOT / 3): 
+                                temp_state = self.beacon_state.copy()
+                                process_slots(temp_state, curr_slot)
 
+                                if self.is_proposer(temp_state) and curr_slot not in self.my_proposed_blocks:
+                                    block = self.propose_block(curr_slot)
+                                    if block is None:
+                                        cprint(f'{self.id}: No more transactions to add to blockchain at slot {curr_slot}, epoch {curr_epoch}', 'dark_grey')
+                                    else:
+                                        self.proposer_subnet.append(block)
+                                        self.my_proposed_blocks[curr_slot] = encode(block, SignedBeaconBlock)
+                                        cprint(f'{self.id}: Signed beacon block proposed for slot {curr_slot}, epoch {curr_epoch}', 'yellow')
+
+
+                            if attesting_slot == curr_slot and self.current_attestation_assignment is not None:
+
+                                # attest a block b/w 1/3rd and 2/3rd of the slot
+                                if (INTERVALS_PER_SLOT / 3) < per_interval.counter < (2 * INTERVALS_PER_SLOT / 3): 
+                                    
+                                    # check if a block has already been attested in the given slot
                                     # check if the propoed block belongs to the attestation slot
-                                    if proposed_block.message.slot == attesting_slot:
+                                    if attesting_slot not in self.my_attestations and self.proposer_subnet and self.proposer_subnet[-1].message.slot == attesting_slot:
+                                        proposed_block = self.proposer_subnet[-1]
 
                                         # do not try to attest a block again
-                                        if proposed_block != self.processed_blocks[curr_slot]:
+                                        if curr_slot not in self.processed_blocks:
                                             
-                                            self.processed_blocks[curr_slot] = proposed_block
                                             proposed_state = self.beacon_state.copy()
-                                            state_transition(proposed_state, proposed_block)
+
                                             try:
-                                                # state_transition(proposed_state, proposed_block)
+                                                state_transition(proposed_state, proposed_block)
 
                                                 my_attestation = self.get_attestation(curr_slot, attesting_index, proposed_block, proposed_state)
                                                 self.my_attestations[attesting_slot] = encode(my_attestation, Attestation)
+                                                self.processed_blocks[curr_slot] = encode(proposed_block, SignedBeaconBlock)
 
                                                 self.broadcast_attestation(my_attestation, proposed_state, curr_slot, curr_epoch, attesting_index)
 
@@ -164,54 +162,57 @@ class Node(threading.Thread):
                                             except AssertionError:
                                                 cprint(f'{self.id}: Invalid block at slot {curr_slot}, epoch {curr_epoch}, proposer index: {proposed_block.message.proposer_index}', 'red')
 
-                                # TODO aggregate if anything is new 
-                                if self.is_aggregator(self.beacon_state, curr_slot, attesting_index, slot_signature) and per_interval.counter >= (INTERVALS_PER_SLOT / 2) - 1 and per_interval.counter < INTERVALS_PER_SLOT - 2:
-                                    other_attestations = []
 
-                                    latest_proposed_block = self.processed_blocks[curr_slot]
+                                # aggregate attestations of a block b/w 2/3rd and 2/3rd + 1 of the slot
+                                if (2 * INTERVALS_PER_SLOT / 3) <= per_interval.counter < (1 + 2 * INTERVALS_PER_SLOT / 3): 
 
-                                    if latest_proposed_block is not None:
-                                        proposed_state = self.beacon_state.copy()
+                                    slot_signature = self.get_slot_signature(curr_slot)
 
-                                        try:
-                                            state_transition(proposed_state, latest_proposed_block)
-                                        except AssertionError:
-                                            cprint(f'{self.id}: Invalid block attested to at slot {curr_slot}, epoch {curr_epoch}, proposer index: {latest_proposed_block.message.proposer_index}', 'red')
-                                            return
-                                        
-                                        subnet_id = self.compute_subnet_for_aggregation(proposed_state, curr_slot, curr_epoch, attesting_index)
-                                        
-                                        for attestation in self.attestation_subnets[subnet_id][::-1]:
-                                            if attestation.data.slot == curr_slot:
-                                                other_attestations.append(attestation)
-                                            else:
-                                                break
+                                    if self.is_aggregator(self.beacon_state, curr_slot, attesting_index, slot_signature):
 
-                                        if len(other_attestations) > 1 and curr_slot in self.my_attestations:
+                                        latest_proposed_block = decode(self.processed_blocks[curr_slot], SignedBeaconBlock)
+
+                                        if latest_proposed_block is not None:
+                                            proposed_state = self.beacon_state.copy()
+
+                                            try:
+                                                state_transition(proposed_state, latest_proposed_block)
+                                            except AssertionError:
+                                                cprint(f'{self.id}: Invalid block attested to at slot {curr_slot}, epoch {curr_epoch}, proposer index: {latest_proposed_block.message.proposer_index}', 'red')
+                                                return
                                             
-                                            my_attestation = decode(self.my_attestations[curr_slot], Attestation)
-                                            if my_attestation.data.slot == curr_slot:
-                                                aggregated_attestation = self.aggregate_attestations(other_attestations, my_attestation)
+                                            subnet_id = self.compute_subnet_for_aggregation(proposed_state, curr_slot, curr_epoch, attesting_index)
+                                            
+                                            new_attestation_received_flag = False
+                                            for attestation in self.attestation_subnets[subnet_id][::-1]:
+                                                
+                                                # TODO don't traverse all attestations in the subnet 
+                                                if attestation.data.slot == curr_slot and attestation not in self.other_attestations[curr_slot]:
+                                                    new_attestation_received_flag = True
+                                                    self.other_attestations[curr_slot].append(attestation)
 
-                                                signed_aggregate_and_proof = self.get_signed_aggregate_and_proof(self.validator_index, aggregated_attestation)
-                                                self.main_subnet.append(signed_aggregate_and_proof)
+                                            # node should receive new attestations
+                                            # node should receive atleast 2 attestations for aggregation 
+                                            # node should have attested to the proposed block itself
+                                            if new_attestation_received_flag and len(self.other_attestations[curr_slot]) >= 2 and curr_slot in self.my_attestations:
+                                                
+                                                my_attestation = decode(self.my_attestations[curr_slot], Attestation)
+                                                if my_attestation.data.slot == curr_slot:
+                                                    aggregated_attestation = self.aggregate_attestations(self.other_attestations[curr_slot], my_attestation)
 
-                                                cprint(f'{self.id}: Attestations aggregated for slot {curr_slot}, epoch {curr_epoch}', 'blue')
+                                                    signed_aggregate_and_proof = self.get_signed_aggregate_and_proof(self.validator_index, aggregated_attestation)
+                                                    self.main_subnet.append(signed_aggregate_and_proof)
 
-                                        
+                                                    cprint(f'{self.id}: Attestations aggregated for slot {curr_slot}, epoch {curr_epoch}', 'blue')
 
-                            if per_interval.counter >= INTERVALS_PER_SLOT - 2:
 
-                                if self.main_subnet:
+                            # check aggregate attestations of a block at the last interval of the slot
+                            if (1 + 2 * INTERVALS_PER_SLOT / 3) <= per_interval.counter < (INTERVALS_PER_SLOT): 
+
+                                # check if attestation is of incorrect slot
+                                # check if attestation doesn't attest latest accepted beacon block
+                                if self.main_subnet and self.main_subnet[-1].message.aggregate.data.slot == curr_slot and hash_tree_root(self.beacon_chain_head.message) != self.main_subnet[-1].message.aggregate.data.beacon_block_root:
                                     signed_aggregate_and_proof = self.main_subnet[-1]
-                                    
-                                    # attestation is of incorrect slot
-                                    if signed_aggregate_and_proof.message.aggregate.data.slot != curr_slot:
-                                        return
-
-                                    # attestation already used to change state and block
-                                    if hash_tree_root(self.beacon_chain_head.message) == signed_aggregate_and_proof.message.aggregate.data.beacon_block_root:
-                                        return
 
                                     aggregator_index = signed_aggregate_and_proof.message.aggregator_index
                                     committee = get_beacon_committee(self.beacon_state, curr_slot, signed_aggregate_and_proof.message.aggregate.data.index)

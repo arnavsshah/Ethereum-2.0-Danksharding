@@ -1,0 +1,6 @@
+- Check for rollbacks if assertion fails
+- Check if assertions within functions can also be logged
+- Check aggregated attestation has been signed by 2/3 majority (get BLS working) 
+- Add asynchronousity
+- Change slot seconds to 12 and INTERVALS_PER_SLOT processing to INTERVALS_PER_SLOT/4 instead of INTERVALS_PER_SLOT/3
+- Periodically remove attestations from the subnets to avoid traversing the entire subnet history
